@@ -1,5 +1,6 @@
 // 2018-07-24: Modify random_gaussian_raw to make proper variance.
 // 2018-07-25: Change name and add FFCube version
+// 2018-07-30: Add set(double[] md, double value) and its overloading
 public void check_length(double[] m1, double[] m2)
 {
   if(m1.length != m2.length)
@@ -15,6 +16,17 @@ public void zero(double[] md)
 public void zero(FFCube md)
 {
   zero(md.raw());
+}
+
+public void set(double[] md, double value)
+{
+  for(int i = 0; i < md.length; ++i)
+    md[i] = value;
+}
+
+public void set(FFCube md, double value)
+{
+  set(md.raw(), value);
 }
 
 /**

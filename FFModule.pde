@@ -1,4 +1,5 @@
 // 2018-07-29: Change overwriting policy to adding policy.
+// 2018-07-30: Add StaticFeeder
 /**
   FFModule is a micro arithmetic unit
   which can perform forward/backward
@@ -552,6 +553,33 @@ class FFJoin extends FFModule
         ds[bias + j] += dx[j];
       bias += dx.length;
     }
+  }
+  
+  @Override
+  public void batch()
+  {
+  }
+}
+
+public class StaticFeeder extends FFModule
+{
+  private double value;
+  
+  public StaticFeeder(int priority, double value)
+  {
+    super(1, 0, priority);
+    this.value = value;
+  }
+  
+  @Override
+  public void forward(boolean isTraining)
+  {
+  }
+  
+  @Override
+  public void backward(boolean isTraining)
+  {
+    set(getIPin(0).dx, value);
   }
   
   @Override

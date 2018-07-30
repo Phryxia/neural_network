@@ -4,17 +4,17 @@
 FFNet[] net;
 FFVariable x;
 FFVariable[] y;
+FFVariable[] loss;
 Optimizer[] opt;
 ArrayList <FFCube> ts;
 ArrayList <ArrayList <Double>> log = new ArrayList <ArrayList <Double>> ();
-ILoss loss;
 GrayImg2Vec i2v;
 
 // Auto-Encoder config
 int M = 2;
-int N = 48;
-int Z = 2;
-int B = 32;
+int N = 64;
+int Z = 8;
+int B = 16;
 
 void setup()
 {
@@ -25,6 +25,7 @@ void setup()
   
   x = new FFVariable(0, N, N, 1);
   y = new FFVariable[M];
+  loss = new FFVariable[M];
   
   net = new FFNet[M];
   for(int m = 0; m < M; ++m)
@@ -37,8 +38,6 @@ void setup()
   opt = new Optimizer[M];
   opt[0] = new Adam(1e-2, 0.9, 0.999, 1e-8);
   opt[1] = new Nadam(1e-2, 0.9, 0.999, 1e-8);
-  
-  loss = new L2Loss();
   
   i2v = new GrayImg2Vec();
   
@@ -64,6 +63,7 @@ void createAE(int id)
   temp = _net.builder.function(_net.builder.fc(temp, 16), Functions.LRELU);
   temp = _net.builder.function(_net.builder.fc(temp, 32), Functions.LRELU);
   y[id] = _net.builder.function(_net.builder.fc(temp, N, N, 1), Functions.TANH_01);
+  _net.builder.minimize(loss[id] = _net.builder.l1loss(y[id], x));
   net[id] = _net;
   net[id].init();
 }
@@ -96,7 +96,7 @@ void draw()
     for(int t = 0; t < T; ++t)
     {
       double tmp = log.get(m).get(t);
-      ellipse((float)t/T*width, map((float)tmp, 0, 100, height, height/2), 2, 2);
+      ellipse((float)t/T*width, map((float)tmp, 0, 1000, height, height/2), 2, 2);
     }
   }
   colorMode(RGB, 1);
@@ -123,9 +123,9 @@ void train()
     for(int m = 0; m < M; ++m)
     {
       net[m].forward(true);
-      temp[m] += loss.loss(y[m].x, td, y[m].dx);
       net[m].backward(true);
       net[m].storeGradient();
+      temp[m] += loss[m].x.get(0);
     }
   }
   for(int m = 0; m < M; ++m)

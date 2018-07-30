@@ -460,6 +460,16 @@ class FFNet
       return function(ffv, Functions.SQRT);
     }
     
+    public FFVariable l1loss(FFVariable xhat, FFVariable x)
+    {
+      return element_sum(function(sub(xhat, x), Functions.ABS));
+    }
+    
+    public FFVariable l2loss(FFVariable xhat, FFVariable x)
+    {
+      return mul(element_sum(square(sub(xhat, x))), 0.5);
+    }
+    
     /**
       xhat: estimated
       x   : desired
@@ -472,6 +482,32 @@ class FFNet
         mul(x, log(xhat)),
         mul(sub(1, x), log(sub(1, xhat)))
       ), -1));
+    }
+    
+    public void minimize(FFVariable ffv)
+    {
+      // Scan max priority
+      int priority = ffv.priority;
+        
+      // Connect topology
+      FFModule module = new StaticFeeder(priority, 1.0);
+      module.setIPin(0, ffv);
+      
+      // Assign module and parameters
+      addModule(module, priority);
+    }
+    
+    public void maximize(FFVariable ffv)
+    {
+      // Scan max priority
+      int priority = ffv.priority;
+        
+      // Connect topology
+      FFModule module = new StaticFeeder(priority, -1.0);
+      module.setIPin(0, ffv);
+      
+      // Assign module and parameters
+      addModule(module, priority);
     }
   }
 }
