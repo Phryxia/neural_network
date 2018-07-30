@@ -1,6 +1,7 @@
 // 2018-07-24: Modify random_gaussian_raw to make proper variance.
 // 2018-07-25: Change name and add FFCube version
 // 2018-07-30: Add set(double[] md, double value) and its overloading
+// 2018-07-31: Add clip
 public void check_length(double[] m1, double[] m2)
 {
   if(m1.length != m2.length)
@@ -27,6 +28,39 @@ public void set(double[] md, double value)
 public void set(FFCube md, double value)
 {
   set(md.raw(), value);
+}
+
+public void upper_clip(double[] md, double max)
+{
+  for(int i = 0; i < md.length; ++i)
+    md[i] = Math.min(md[i], max);
+}
+
+public void upper_clip(FFCube md, double max)
+{
+  upper_clip(md.raw(), max);
+}
+
+public void lower_clip(double[] md, double min)
+{
+  for(int i = 0; i < md.length; ++i)
+    md[i] = Math.max(md[i], min);
+}
+
+public void lower_clip(FFCube md, double min)
+{
+  lower_clip(md.raw(), min);
+}
+
+public void clip(double[] md, double min, double max)
+{
+  for(int i = 0; i < md.length; ++i)
+    md[i] = Math.max(Math.min(md[i], max), min);
+}
+
+public void clip(FFCube md, double min, double max)
+{
+  clip(md.raw(), min, max);
 }
 
 /**

@@ -2,7 +2,7 @@
 // VERSION = 2018-07-19: add swish, delete FFBuilder
 // 2018-07-30: Deprecate demux. New test example.
 FFNet[] net;
-FFVariable x;
+FFVariable x, yhat;
 FFVariable[] y;
 FFVariable[] loss;
 Optimizer[] opt;
@@ -11,9 +11,9 @@ ArrayList <ArrayList <Double>> log = new ArrayList <ArrayList <Double>> ();
 GrayImg2Vec i2v;
 
 // Auto-Encoder config
-int M = 2;
+int M = 1;
 int N = 64;
-int Z = 8;
+int Z = 4;
 int B = 16;
 
 void setup()
@@ -24,6 +24,7 @@ void setup()
   background(0);
   
   x = new FFVariable(0, N, N, 1);
+  yhat = new FFVariable(0, N, N, 1);
   y = new FFVariable[M];
   loss = new FFVariable[M];
   
@@ -36,8 +37,7 @@ void setup()
     log.add(new ArrayList <Double> ());
   }
   opt = new Optimizer[M];
-  opt[0] = new Adam(1e-2, 0.9, 0.999, 1e-8);
-  opt[1] = new Nadam(1e-2, 0.9, 0.999, 1e-8);
+  opt[0] = new AdaDelta(1e-2, 1e-8);
   
   i2v = new GrayImg2Vec();
   
@@ -57,13 +57,13 @@ void createAE(int id)
 {
   FFNet _net = new FFNet();
   FFVariable temp = x;
-  temp = _net.builder.function(_net.builder.fc(temp, 32), Functions.LRELU);
-  temp = _net.builder.function(_net.builder.fc(temp, 16), Functions.LRELU);
-  temp = _net.builder.function(_net.builder.fc(temp, Z), Functions.LRELU);
-  temp = _net.builder.function(_net.builder.fc(temp, 16), Functions.LRELU);
-  temp = _net.builder.function(_net.builder.fc(temp, 32), Functions.LRELU);
+  temp = _net.builder.swish(_net.builder.fc(temp, 32));
+  temp = _net.builder.swish(_net.builder.fc(temp, 32));
+  temp = _net.builder.swish(_net.builder.fc(temp, Z));
+  temp = _net.builder.swish(_net.builder.fc(temp, 32));
+  temp = _net.builder.swish(_net.builder.fc(temp, 32));
   y[id] = _net.builder.function(_net.builder.fc(temp, N, N, 1), Functions.TANH_01);
-  _net.builder.minimize(loss[id] = _net.builder.l1loss(y[id], x));
+  _net.builder.minimize(loss[id] = _net.builder.l1loss(y[id], yhat));
   net[id] = _net;
   net[id].init();
 }
@@ -90,13 +90,16 @@ void draw()
     PImage img = createImage(N, N, ARGB);
     i2v.vec2img(y[m].x, img);
     image(img, m * width / M, 0, width / M, width / M);
-    
+  }
+  
+  for(int m = 0; m < M; ++m)
+  {
     fill((float)m/M, 1, 1);
     int T = log.get(0).size();
     for(int t = 0; t < T; ++t)
     {
       double tmp = log.get(m).get(t);
-      ellipse((float)t/T*width, map((float)tmp, 0, 1000, height, height/2), 2, 2);
+      ellipse((float)t/T*width, map((float)tmp, 0, 3000, height, height/2), 2, 2);
     }
   }
   colorMode(RGB, 1);
@@ -119,7 +122,10 @@ void train()
   for(int b = 0; b < B; ++b)
   {
     FFCube td = ts.get((int)(random(0, ts.size() - 1)));
-    x.x.set(td);
+    random_gaussian(x.x, 1e-3);
+    add(x.x, td, x.x);
+    clip(x.x, 0, 1);
+    yhat.x.set(td);
     for(int m = 0; m < M; ++m)
     {
       net[m].forward(true);
