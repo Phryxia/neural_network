@@ -80,6 +80,51 @@ public class NAG implements Optimizer
   }
 }
 
+// reference: http://shuuki4.github.io/deep%20learning/2016/05/20/Gradient-Descent-Algorithm-Overview.html
+public class AdaDelta implements Optimizer
+{
+  private double[] g, s, d, t;
+  private double alpha, epsilon;
+  
+  public AdaDelta(double alpha, double epsilon)
+  {
+    this.alpha = alpha;
+    this.epsilon = epsilon;
+  }
+  
+  public void init(int size)
+  {
+    g = new double[size];
+    s = new double[size];
+    d = new double[size];
+    t = new double[size];
+  }
+  
+  public void optimize(double[] x, double[] dx)
+  {
+    // g := alpha * g + (1 - alpha) * dx^2
+    mul(dx, dx, t);
+    mul(g, alpha, g);
+    add(g, t, g);
+    
+    // d := sqrt(s + epsilon) / sqrt(g + epsilon) * dx
+    add(s, epsilon, d);
+    add(g, epsilon, t);
+    div(d, t, d);
+    sqrt(d, d);
+    mul(d, dx, d);
+    
+    // x := x - d
+    sub(x, d, x);
+    
+    // s := alpha * s + (1 - alpha) * d^2
+    mul(s, alpha, s);
+    mul(d, d, t);
+    mul(t, 1 - alpha, t);
+    add(s, t, s);
+  }
+}
+
 public class Adam implements Optimizer
 {
   private double[] m, v, t;
