@@ -331,6 +331,98 @@ class FFNet
       return fc("", ffv, new He(), new ConstantInit(0), oshape);
     }
     
+    /**
+      Warning! You MUST use 3rd order FFVariable.
+      Output will be 3rd order FFVariable with given filter count.
+    
+      Nin : input size
+      K   : filter size
+      P   : padding size
+      S   : stride size
+    
+      Here's some important filter arithmetics.
+      
+      Nout := (Nin - K + 2P) / S + 1
+      
+      conv2d NEVER accept fractional field size.
+      Because it makes users more complicated.
+      (And implementation gets more complex)
+      
+      P is determined as following:
+      
+      P = (K - 1) / 2
+      
+      When such P is used
+        even K implies Nout := (Nin - 2) / S + 1
+        odd  K implies Nout := (Nin - 1) / S + 1
+        
+      This is handy because when it comes with S = 1,
+      it'll try to preserve input size. Odd one is
+      perfectly preserved and even one lose one pixel
+      only.
+      
+      There might be another option using P = K / 2.
+      When you use this, odd one doesn't change while
+      even one gains one pixel more.
+      
+      Generally, convolution filter is used to decrease
+      it's size so increasing isn't helpful. So we choose
+      (K - 1) / 2 instead.
+    */
+    public FFVariable conv2d
+    (
+      String name,
+      FFVariable ffv,
+      int filter_x,
+      int filter_y,
+      int filter_d,
+      int stride_x,
+      int stride_y,
+      boolean padding
+    )
+    {
+      // Define priority
+      int priority = ffv.priority;
+      
+      // Connect topology
+      int N_x = ffv.x.axisSize(0);
+      int N_y = ffv.x.axisSize(1);
+      int N_z = ffv.x.axisSize(2);
+      int pad_x = (padding ? (filter_x - 1)/2 : 0);
+      int pad_y = (padding ? (filter_y - 1)/2 : 0);
+      
+      FFModule module = new Convolution2D(priority, stride_x, stride_y, pad_x, pad_y);
+      module.setIPin(0, ffv);
+      
+      check_conv2d(N_x, filter_x, pad_x, stride_x);
+      check_conv2d(N_y, filter_y, pad_y, stride_y);
+      
+      FFVariable out = new FFVariable(priority + 1,
+        (N_x - filter_x + 2 * pad_x) / stride_x + 1,
+        (N_y - filter_y + 2 * pad_y) / stride_y + 1,
+        filter_d);
+      module.setOPin(0, out);
+      
+      FFVariable F = new FFVariable(priority, new GaussianInit(1e-4), filter_x, filter_y, N_z, filter_d);
+      module.setIPin(1, F);
+      
+      FFVariable b = new FFVariable(priority, out.x.shape);
+      
+      // Assign module and parameters
+      addModule(module, priority);
+      addParameter(F, name + "_F");
+      addParameter(b, name + "_b");
+      
+      return add(out, b);
+    }
+    
+    private void check_conv2d(int N, int K, int P, int S)
+    {
+      if((N - K + 2 * P) % S > 0)
+        throw new IllegalArgumentException("[FFNet.builder.conv2d] Illegal parameter size: " + 
+          "(N - K + 2P) should be able to be divided with S. (" + N + " - " + K + " + " + (2 * P) + ") % " + S + " != 0");
+    }
+    
     public FFVariable drop(FFVariable ffv, double rate)
     {
       // Define priority

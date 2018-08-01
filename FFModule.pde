@@ -589,6 +589,137 @@ public class StaticFeeder extends FFModule
 }
 
 /**
+  Shape is really important.
+  
+  One filter generates one channel.
+  But this makes users hard to stack multiple
+  CNN layers.
+  
+  This doesn't support bias for simplicity.
+  You can add it after convolution ends.
+  
+  Also, I don't recommend to use even-number sized
+  filter!
+  
+  <forward>
+    s := convolution(x, f)
+  
+  <backward>
+    dx := 
+  
+  <ipin>
+    0: x (x.order() == 3)
+    1: f (f.order() == 4, f.axisSize(2) == x.axisSize(2), f.axisSize(3): Filter Count.)
+  
+  <opin>
+    0: s (depth is same to filter)
+*/
+public class Convolution2D extends FFModule
+{
+  private int stride_x, stride_y, pad_x, pad_y;
+  
+  public Convolution2D(int priority, int stride_x, int stride_y, int pad_x, int pad_y)
+  {
+    super(2, 1, priority);
+    this.stride_x = stride_x;
+    this.stride_y = stride_y;
+    this.pad_x = pad_x;
+    this.pad_y = pad_y;
+  }
+  
+  @Override
+  public void forward(boolean isTraining)
+  {
+    FFCube a = getIPin(0).x;
+    FFCube f = getIPin(1).x;
+    int s_y = 0;
+    int s_x = 0;
+    for(int d = 0; d < f.axisSize(3); ++d)
+    {
+      s_y = 0;
+      for(int y = -pad_y; y + f.axisSize(1) <= a.axisSize(1) + pad_y; y += stride_y)
+      {
+        s_x = 0;
+        for(int x = -pad_x; x + f.axisSize(0) <= a.axisSize(0) + pad_x; x += stride_x)
+        {
+          convolution_forward(x, y, s_x, s_y, d);
+          ++s_x;
+        }
+        ++s_y;
+      }
+    }
+  }
+  
+  @Override
+  public void backward(boolean isTraining)
+  {
+    FFCube a = getIPin(0).x;
+    FFCube f = getIPin(1).x;
+    int s_y = 0;
+    int s_x = 0;
+    for(int d = 0; d < f.axisSize(3); ++d)
+    {
+      s_y = 0;
+      for(int y = -pad_y; y + f.axisSize(1) <= a.axisSize(1) + pad_y; y += stride_y)
+      {
+        s_x = 0;
+        for(int x = -pad_x; x + f.axisSize(0) <= a.axisSize(0) + pad_x; x += stride_x)
+        {
+          convolution_backward(x, y, s_x, s_y, d);
+          ++s_x;
+        }
+        ++s_y;
+      }
+    }
+  }
+   
+  @Override
+  public void batch()
+  {
+  }
+  
+  // Process convolution at [a_x, a_y] with filter [f_d]
+  // and store its output to [a_x, a_y, f_d]
+  private void convolution_forward(int a_x, int a_y, int s_x, int s_y, int f_d)
+  {
+    FFCube a = getIPin(0).x;
+    FFCube f = getIPin(1).x;
+    FFCube s = getOPin(0).x;
+    double sum = 0.0;
+    for(int z = 0; z < f.axisSize(2); ++z)
+      for(int y = 0; y < f.axisSize(1); ++y)
+        for(int x = 0; x < f.axisSize(0); ++x)
+          if(0 <= a_x + x && a_x + x < a.axisSize(0) &&
+            0 <= a_y + y && a_y + y < a.axisSize(1))
+          {
+            sum += a.get(a_x + x, a_y + y, z) * f.get(x, y, z, f_d);
+          }
+    s.set(sum, s_x, s_y, f_d);
+  }
+  
+  // Compute the gradient from each output cells: s
+  private void convolution_backward(int a_x, int a_y, int s_x, int s_y, int f_d)
+  {
+    FFCube a = getIPin(0).x;
+    FFCube f = getIPin(1).x;
+    FFCube da = getIPin(0).dx;
+    FFCube df = getIPin(1).dx;
+    FFCube ds = getOPin(0).dx;
+    double sum = 0.0;
+    for(int z = 0; z < f.axisSize(2); ++z)
+      for(int y = 0; y < f.axisSize(1); ++y)
+        for(int x = 0; x < f.axisSize(0); ++x)
+          if(0 <= a_x + x && a_x + x < a.axisSize(0) &&
+            0 <= a_y + y && a_y + y < a.axisSize(1))
+          {
+            // compute da
+            da.set(da.get(a_x + x, a_y + y, z) + f.get(x, y, z, f_d) * ds.get(s_x, s_y, f_d), a_x + x, a_y + y, z);
+            df.set(df.get(x, y, z, f_d) + a.get(a_x + x, a_y + y, z) * ds.get(s_x, s_y, f_d), x, y, z, f_d);
+          }
+  }
+}
+
+/**
   Demux: copy one vectors to others
 */
 /*
